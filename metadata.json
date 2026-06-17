@@ -1,0 +1,8 @@
+{
+  "name": "Remix: AGT NAVI 0.9 BU3",
+  "description": "Interactive 3D navigation and star systems catalog for No Man\u0027s Sky regions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

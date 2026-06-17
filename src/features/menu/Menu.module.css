@@ -1,0 +1,71 @@
+.sidenav {
+  position: absolute;
+  top:0;
+  /* bottom: 0; */
+  left:0;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-height: 99vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  z-index: 1;
+}
+.sidenav div {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.tronbox {
+  border-radius: 3px;
+  border: 1px #FF0500 solid;
+  box-shadow: 0 0 3px #FF0500, inset 0 0 3px #FF0500;
+}
+.content {
+  color: white;
+  background-color: rgba(0,0,0,0.7);
+}
+img {
+  height: 24px;
+  width: 24px;
+  margin: 3px;
+}
+.choices {
+  overflow: auto;
+  border: 1px #FF0500 solid;
+  border-top: 0px;
+  margin: 0 5px 5px;
+  padding-bottom: 5px;
+}
+.sidenav input {
+  border: 1px #FF0500 solid;
+  outline: none;
+  background-color: rgba(0,0,0,0.5);
+  color: white;
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-left: 5px;
+  font-family: inherit;
+  font-size: 13px;
+}
+.sidenav input:focus {
+  outline: 1px #FF0500 solid;
+  box-shadow: 0 0 3px #FF0500;
+}
+ul {
+  text-align: left;
+}
+li {
+  cursor: pointer;
+}
+
+/* Scroll bar */
+::-webkit-scrollbar {
+  width: 3px;
+}
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background:  #80EAFF; /*#22AFCA;*/
+  border-radius: 1px;
+}

@@ -1,0 +1,415 @@
+import { setCatalogue, setDistances, setStatus } from './features/startup/startupSlice'
+import { setGalaxyID, setGalaxyQuery, setRegionID, setRegionQuery, setSystemID, setSystemQuery } from './features/menu/menuSlice'
+import { setNode } from './features/tooltip/tooltipSlices'
+import { CATALOGUE, INTERREGION, INTRAREGION, REGIONDB } from './data/assets'
+import * as d3 from './d3-bundle';
+
+// Data: Load spreadsheets into array
+function loadSheets(url) {
+  // console.log('d3:', d3)
+  // d3.csv("/path/to/file.csv")
+  // .header("header-name", "header-value")
+  // Access-Control-Allow-Origin: *.
+  return d3.tsv(url)
+    .then(data => data)
+}
+
+// Data: Load region's star system from catalogue
+function loadCatalogue(url) {
+  console.log('Load star systems catalogue...')
+  return loadSheets(url)
+  .then(data => {
+    console.log('chain / loadCatalogue OK')
+    // Get keys
+    const keyMap = {}
+    Object.keys(data[0]).forEach(k => {
+      const v = data[0][k];
+      keyMap[v] = k;
+      if (typeof v === 'string') {
+        const normalized = v.trim().toLowerCase();
+        if (normalized === 'priority') {
+          keyMap['Priority'] = k;
+        }
+      }
+    });
+    // Format nodes from catalogue
+    return data.reduce((res,r) => {
+      // Filter Locked record only
+      if(r[keyMap['Lock Record?']] === 'Y' && (r[keyMap['Phantom System?']] === 'Normal' || r[keyMap['Phantom System?']] === '' || r[keyMap['Phantom System?']] === null || r[keyMap['Phantom System?']] === undefined) && r[keyMap['GalaxyID']] !== 'Null' && r[keyMap['Glyph Code']] !== '') {
+        // Galaxy > Region > Star indexed by SystemID
+        // Set galaxy
+        if (res[r[keyMap['GalaxyID']]] === undefined) {
+          res[r[keyMap['GalaxyID']]] = {
+            galaxyName: r[keyMap['Galaxy']],
+            galaxyID: r[keyMap['GalaxyID']],
+            regions: {}
+          }
+        }
+        const galaxy = res[r[keyMap['GalaxyID']]]
+        // Set region
+        const regionID = r[keyMap['Glyph Code']].slice(4)
+        if (galaxy.regions[regionID] === undefined) {
+          galaxy.regions[regionID] = {
+            regionName: r[keyMap['Region']],
+            systems: []
+          }
+        }
+        const region = galaxy.regions[regionID]
+
+        // Set system
+        const systemID = r[keyMap['System ID']]
+        if (region.systems[systemID] === undefined) {
+          region.systems[systemID] = {}
+        }
+        const system = region.systems[systemID]
+        // Check date
+        const prevSurvey = system.surveyDate !== undefined ? new Date(system.surveyDate).setHours(0, 0, 0, 0) : new Date(0)
+        const currSurvey = r[keyMap['Survey Date']] !== '' ? new Date(r[keyMap['Survey Date']]).setHours(0, 0, 0, 0) : new Date(r[keyMap['Discovery Date']]).setHours(0, 0, 0, 0)
+        // Fill new (undef or recent record)
+        if (system.surveyDate === undefined || (prevSurvey < currSurvey)) {
+          if (r[keyMap['System Name (All platforms)']] !== '') { system.name = r[keyMap['System Name (All platforms)']] }
+          if (r[keyMap['Original Sys Name']] !== '') { system.originalName = r[keyMap['Original Sys Name']] }
+          if (r[keyMap['Galactic Coordinates']] !== '') { system.coordinates = r[keyMap['Galactic Coordinates']] }
+          if (r[keyMap['Glyph Code']] !== '') { system.glyphs = r[keyMap['Glyph Code']] }
+          if (r[keyMap['Discovered by']] !== '') {
+            const prevDisco = system.dicoveryDate !== undefined ? new Date(system.discoveryDate).setHours(0, 0, 0, 0) : new Date(0)
+            const currDisco = r[keyMap['Discovery Date']] !== '' ? new Date(r[keyMap['Discovery Date']]).setHours(0, 0, 0, 0) : new Date(0)
+            if (system.discoveryDate === undefined || (currDisco < prevDisco)) { // Dicovered earlier
+              system.discoveryDate = r[keyMap['Discovery Date']]
+              system.discoveredBy = r[keyMap['Discovered by']]
+            }
+          }
+          if (r[keyMap['Source/Surveyor Name']] !== '') {
+            system.surveyDate = r[keyMap['Survey Date']]
+            system.surveyedBy = r[keyMap['Source/Surveyor Name']]
+            system.release = r[keyMap['Release']]
+          }
+          if (r[keyMap['Civilized?']] !== '') { system.civilized = r[keyMap['Civilized?']] }
+          if (r[keyMap['Bases']] !== '') { system.bases = r[keyMap['Bases']] }
+          if (r[keyMap['Multiple stars?']] !== '') { system.starCount = r[keyMap['Multiple stars?']] }
+          if (r[keyMap['Category']] !== '') { system.starClass = r[keyMap['Category']] }
+          if (r[keyMap['Color']] !== '') { system.starColor = r[keyMap['Color']] }
+          if (r[keyMap['# of planets']] !== '') { system.planetCount = r[keyMap['# of planets']] }
+          if (r[keyMap['# of moons']] !== '') { system.moonCount = r[keyMap['# of moons']] }
+          if (r[keyMap['Faction']] !== '') { system.faction = r[keyMap['Faction']] }
+          if (r[keyMap['LY from center (auto estimate)']] !== '') { region.ly = r[keyMap['LY from center (auto estimate)']] }
+          if (r[keyMap['Water (Y/N)']] !== '') { system.water = r[keyMap['Water (Y/N)']] }
+          if (r[keyMap['Economy']] !== '') { system.economy = r[keyMap['Economy']] }
+          if (r[keyMap['Wealth']] !== '') { system.wealth = r[keyMap['Wealth']] }
+          if (r[keyMap['e-buy']] !== '') { system.buy = r[keyMap['e-buy']] }
+          if (r[keyMap['E-Sell']] !== '') { system.sell = r[keyMap['E-Sell']] }
+          if (r[keyMap['Conflict']] !== '') { system.conflict = r[keyMap['Conflict']] }
+          if (r[keyMap['X coord DEC']] !== '') { region.cx = parseInt(r[keyMap['X coord DEC']]) }
+          if (r[keyMap['Y coord DEC']] !== '') { region.cy = parseInt(r[keyMap['Y coord DEC']]) }
+          if (r[keyMap['Z coord DEC']] !== '') { region.cz = parseInt(r[keyMap['Z coord DEC']]) }
+          if (r[keyMap['System ID']] !== '') { system.ssi = parseInt(r[keyMap['System ID']]) }
+          if (r[keyMap['Lock Record?']] !== '') { system.locked = r[keyMap['Lock Record?']] }
+          if (r[keyMap['Phantom System?']] !== '') { system.phantom = r[keyMap['Phantom System?']] }
+          if (r[keyMap['NMS wiki Link']] !== '') { system.wiki = r[keyMap['NMS wiki Link']] }
+          if (r[keyMap['Star System Age (billions of years)']] !== '') { system.age = r[keyMap['Star System Age (billions of years)']] }
+          if (r[keyMap['Researchteam']] !== '') { system.team = r[keyMap['Researchteam']] }
+          // if (r[keyMap['Galaxy']] !== '') { system.galaxy = r[keyMap['Galaxy']] }
+          // if (r[keyMap['Region']] !== '') { system.region = r[keyMap['Region']] }
+          // if (r[keyMap['GalaxyID']] !== '') { system.galaxyID = r[keyMap['GalaxyID']] }
+          if (r[keyMap['Economy Level']] !== '') { system.economyLevel = r[keyMap['Economy Level']] }
+          if (r[keyMap['Wealth Level']] !== '') { system.wealthLevel = r[keyMap['Wealth Level']] }
+          if (r[keyMap['Conflict Level']] !== '') { system.conflictLevel = r[keyMap['Conflict Level']] }
+          const d3KeysList = Object.keys(data[0]);
+          const keyCol16 = d3KeysList[15];
+          if (keyCol16 && r[keyCol16] !== '') { system.dissonant = r[keyCol16] }
+          const keyCol12 = d3KeysList[11];
+          if (keyCol12 && r[keyCol12] !== '') { system.giant = r[keyCol12] }
+          const keyCol75 = d3KeysList[74];
+          if (keyCol75 && r[keyCol75] !== '') { system.wikiUrl = r[keyCol75] }
+        } 
+        else { // Fill blank from older record
+          if (r[keyMap['System Name (All platforms)']] !== '' && system.name === undefined) { system.name = r[keyMap['System Name (All platforms)']] }
+          if (r[keyMap['Original Sys Name']] !== '' && system.originalName === undefined) { system.originalName = r[keyMap['Original Sys Name']] }
+          if (r[keyMap['Galactic Coordinates']] !== '' && system.coordinates === undefined) { system.coordinates = r[keyMap['Galactic Coordinates']] }
+          if (r[keyMap['Glyph Code']] !== '' && system.glyphs === undefined) { system.glyphs = r[keyMap['Glyph Code']] }
+          if (r[keyMap['Discovered by']] !== '') {
+            const prevDisco = system.discoveryDate !== undefined ? new Date(system.discoveryDate).setHours(0, 0, 0, 0) : new Date(0)
+            const currDisco = r[keyMap['Discovery Date']] !== '' ? new Date(r[keyMap['Discovery Date']]).setHours(0, 0, 0, 0) : new Date(0)
+            if (system.discoveryDate === undefined || (currDisco < prevDisco)) { // Dicovered earlier
+              system.discoveryDate = r[keyMap['Discovery Date']]
+              system.discoveredBy = r[keyMap['Discovered by']]
+            }
+          }
+          if (r[keyMap['Civilized?']] !== '' && system.civilized === undefined) { system.civilized = r[keyMap['Civilized?']] }
+          if (r[keyMap['Bases']] !== '' && system.bases === undefined) { system.bases = r[keyMap['Bases']] }
+          if (r[keyMap['Multiple stars?']] !== '' && system.starCount === undefined) { system.starCount = r[keyMap['Multiple stars?']] }
+          if (r[keyMap['Category']] !== '' && system.starClass === undefined) { system.starClass = r[keyMap['Category']] }
+          if (r[keyMap['Color']] !== '' && system.starColor === undefined) { system.starColor = r[keyMap['Color']] }
+          if (r[keyMap['# of planets']] !== '' && system.planetCount === undefined) { system.planetCount = r[keyMap['# of planets']] }
+          if (r[keyMap['# of moons']] !== '' && system.moonCount === undefined) { system.moonCount = r[keyMap['# of moons']] }
+          if (r[keyMap['Faction']] !== '' && system.faction === undefined) { system.faction = r[keyMap['Faction']] }
+          if (r[keyMap['LY from center (auto estimate)']] !== '' && region.ly === undefined) { region.ly = r[keyMap['LY from center (auto estimate)']] }
+          if (r[keyMap['Water (Y/N)']] !== '' && system.water === undefined) { system.water = r[keyMap['Water (Y/N)']] }
+          if (r[keyMap['Economy']] !== '' && system.economy === undefined) { system.economy = r[keyMap['Economy']] }
+          if (r[keyMap['Wealth']] !== '' && system.wealth === undefined) { system.wealth = r[keyMap['Wealth']] }
+          if (r[keyMap['e-buy']] !== '' && system.buy === undefined) { system.buy = r[keyMap['e-buy']] }
+          if (r[keyMap['E-Sell']] !== '' && system.sell === undefined ) { system.sell = r[keyMap['E-Sell']] }
+          if (r[keyMap['Conflict']] !== '' && system.conflict === undefined) { system.conflict = r[keyMap['Conflict']] }
+          if (r[keyMap['X coord DEC']] !== '' && region.cx === undefined) { region.cx = parseInt(r[keyMap['X coord DEC']]) }
+          if (r[keyMap['Y coord DEC']] !== '' && region.cy === undefined) { region.cy = parseInt(r[keyMap['Y coord DEC']]) }
+          if (r[keyMap['Z coord DEC']] !== '' && region.cz === undefined) { region.cz = parseInt(r[keyMap['Z coord DEC']]) }
+          if (r[keyMap['System ID']] !== '' && system.ssi === undefined) { system.ssi = parseInt(r[keyMap['System ID']]) }
+          if (r[keyMap['Lock Record?']] !== '' && system.locked === undefined) { system.locked = r[keyMap['Lock Record?']] }
+          if (r[keyMap['Phantom System?']] !== '' && system.phantom === undefined) { system.phantom = r[keyMap['Phantom System?']] }
+          if (r[keyMap['NMS wiki Link']] !== '' && system.wiki === undefined) { system.wiki = r[keyMap['NMS wiki Link']] }
+          if (r[keyMap['Star System Age (billions of years)']] !== '' && system.age === undefined) { system.age = r[keyMap['Star System Age (billions of years)']] }
+          if (r[keyMap['Researchteam']] !== '' && system.team === undefined) { system.team = r[keyMap['Researchteam']] }
+          // if (r[keyMap['Galaxy']] !== '' && system.galaxy === undefined) { system.galaxy = r[keyMap['Galaxy']] }
+          // if (r[keyMap['Region']] !== '' && system.galaxy === undefined) { system.region = r[keyMap['Region']] }
+          // if (r[keyMap['GalaxyID']] !== '' && system.galaxy === undefined) { system.galaxyID = r[keyMap['GalaxyID']] }
+          if (r[keyMap['Economy Level']] !== '' && system.economyLevel === undefined) { system.economyLevel = r[keyMap['Economy Level']] }
+          if (r[keyMap['Wealth Level']] !== '' && system.wealthLevel === undefined) { system.wealthLevel = r[keyMap['Wealth Level']] }
+          if (r[keyMap['Conflict Level']] !== '' && system.conflictLevel === undefined) { system.conflictLevel = r[keyMap['Conflict Level']] }
+          const d3KeysList = Object.keys(data[0]);
+          const keyCol16 = d3KeysList[15];
+          if (keyCol16 && r[keyCol16] !== '' && system.dissonant === undefined) { system.dissonant = r[keyCol16] }
+          const keyCol12 = d3KeysList[11];
+          if (keyCol12 && r[keyCol12] !== '' && system.giant === undefined) { system.giant = r[keyCol12] }
+          const keyCol75 = d3KeysList[74];
+          if (keyCol75 && r[keyCol75] !== '' && system.wikiUrl === undefined) { system.wikiUrl = r[keyCol75] }
+        }
+      }
+      return res
+    },[]);
+  })
+}
+
+// Data: Load region's star system distances
+function loadDistances(url) {
+  console.log('Load star systems distances...')
+  return loadSheets(url)
+  .then(data => {
+    console.log('chain / loadDistances OK')
+    return data.reduce((res,r) => {
+      if (r['System Name A'] !== '') {
+        res.push({
+          sourceName: r['System Name A'],
+          sourceRegion: r['Region A'],
+          source: r['Glyphs A'],
+          sourceTarget: r['System Name B'],
+          targetRegion: r['Region B'],
+          target: r['Glyphs B'],
+          distance: parseInt(r['Inter System Distance (ly)'])
+        })
+      }
+      return res
+    },[]);
+  })
+}
+
+// Map priorities from REGIONDB to CATALOGUE regions
+function applyRegionDBPriorities(catalogue, rawRegionDB) {
+  if (!rawRegionDB || rawRegionDB.length === 0) {
+    console.log('applyRegionDBPriorities: REGIONDB is empty');
+    return;
+  }
+
+  const d3KeysList = Object.keys(rawRegionDB[0]);
+  console.log('applyRegionDBPriorities: Keys are:', d3KeysList);
+  console.log('applyRegionDBPriorities: First row labels:', rawRegionDB[0]);
+
+  const keyLabelMap = {};
+  d3KeysList.forEach(k => {
+    const val = rawRegionDB[0][k];
+    if (typeof val === 'string') {
+      keyLabelMap[val.trim().toLowerCase()] = k;
+    }
+  });
+
+  let priorityKey = keyLabelMap['priority'];
+  if (!priorityKey) {
+    const checkIndex = (idx) => {
+      if (d3KeysList[idx]) {
+        const k = d3KeysList[idx];
+        const val = rawRegionDB[0][k];
+        if (typeof val === 'string' && val.trim().toLowerCase() === 'priority') {
+          return k;
+        }
+      }
+      return null;
+    };
+    priorityKey = checkIndex(42) || checkIndex(43) || d3KeysList[42] || d3KeysList[43];
+  }
+
+  console.log('applyRegionDBPriorities: Resolved priorityKey as:', priorityKey);
+
+  const regionKey = keyLabelMap['region'] || keyLabelMap['region name'];
+  const glyphKey = keyLabelMap['glyph code'] || keyLabelMap['glyphs'];
+
+  const dbPriorityMap = {};
+  const dbIDPriorityMap = {};
+
+  rawRegionDB.slice(1).forEach((row) => {
+    let pVal = '';
+    if (priorityKey) {
+      pVal = row[priorityKey];
+    }
+    if (!pVal) {
+      pVal = row[d3KeysList[42]] || row[d3KeysList[43]];
+    }
+
+    if (pVal) {
+      const pTrim = pVal.trim();
+      const pLower = pTrim.toLowerCase();
+      const PRIORITY_RANKS = { 'low': 1, 'medium': 2, 'high': 3 };
+
+      if (PRIORITY_RANKS[pLower] !== undefined) {
+        const priorityLabel = pTrim.charAt(0).toUpperCase() + pTrim.slice(1).toLowerCase();
+        const rank = PRIORITY_RANKS[pLower];
+
+        if (regionKey && row[regionKey]) {
+          const rName = row[regionKey].trim().toLowerCase();
+          if (!dbPriorityMap[rName] || rank > dbPriorityMap[rName].rank) {
+            dbPriorityMap[rName] = { priority: priorityLabel, rank };
+          }
+        }
+
+        if (glyphKey && row[glyphKey]) {
+          const glyph = row[glyphKey].trim();
+          if (glyph.length >= 12) {
+            const rID = glyph.slice(4).toLowerCase();
+            if (!dbIDPriorityMap[rID] || rank > dbIDPriorityMap[rID].rank) {
+              dbIDPriorityMap[rID] = { priority: priorityLabel, rank };
+            }
+          }
+        }
+      }
+    }
+  });
+
+  Object.keys(catalogue).forEach(galaxyID => {
+    const galaxy = catalogue[galaxyID];
+    if (galaxy && galaxy.regions) {
+      Object.keys(galaxy.regions).forEach(regionID => {
+        const region = galaxy.regions[regionID];
+        const rNameLower = region.regionName ? region.regionName.trim().toLowerCase() : '';
+        const rIDLower = regionID.toLowerCase();
+
+        let matched = null;
+
+        if (dbIDPriorityMap[rIDLower]) {
+          matched = dbIDPriorityMap[rIDLower];
+        } else if (rNameLower && dbPriorityMap[rNameLower]) {
+          matched = dbPriorityMap[rNameLower];
+        } else if (rNameLower) {
+          for (let i = 1; i < rawRegionDB.length; i++) {
+            const row = rawRegionDB[i];
+            let rowHasRegionName = false;
+            let rowHasRegionID = false;
+
+            d3KeysList.forEach(k => {
+              const val = row[k];
+              if (typeof val === 'string') {
+                const valTrim = val.trim().toLowerCase();
+                if (valTrim === rNameLower) {
+                  rowHasRegionName = true;
+                }
+                if (valTrim === rIDLower || (valTrim.length >= 12 && valTrim.slice(4) === rIDLower)) {
+                  rowHasRegionID = true;
+                }
+              }
+            });
+
+            if (rowHasRegionName || rowHasRegionID) {
+              let pVal = row[priorityKey] || row[d3KeysList[42]] || row[d3KeysList[43]];
+              if (pVal) {
+                const pTrim = pVal.trim();
+                const pLower = pTrim.toLowerCase();
+                const PRIORITY_RANKS = { 'low': 1, 'medium': 2, 'high': 3 };
+                if (PRIORITY_RANKS[pLower] !== undefined) {
+                  matched = {
+                    priority: pTrim.charAt(0).toUpperCase() + pTrim.slice(1).toLowerCase(),
+                    rank: PRIORITY_RANKS[pLower]
+                  };
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        if (matched) {
+          region.priority = matched.priority;
+          region.priorityRank = matched.rank;
+          console.log(`Matched Priority: ${region.regionName} is ${matched.priority} (rank ${matched.rank})`);
+        } else {
+          region.priority = '';
+          region.priorityRank = 0;
+        }
+      });
+    }
+  });
+}
+
+
+export const loadData = () => dispatch => {
+  dispatch(setStatus('Loading'))
+  return Promise.all([
+    loadCatalogue(CATALOGUE), 
+    loadDistances(INTRAREGION), 
+    loadDistances(INTERREGION),
+    loadSheets(REGIONDB)
+  ])
+  .then(data => {
+    console.log('loadData / catalogue', data[0])
+    console.log('loadData / inter-region', data[1])
+    console.log('loadData / intra-region', data[2])
+    console.log('loadData / region-db', data[3])
+    
+    const catalogue = data[0];
+    const rawRegionDB = data[3];
+
+    // Apply priorities strictly resolved from REGIONDB onto catalogue
+    applyRegionDBPriorities(catalogue, rawRegionDB);
+
+    // Save full catalogue
+    dispatch(setCatalogue(catalogue))
+    dispatch(setDistances(data[1].concat(data[2])))
+    dispatch(setStatus('Full'))
+    
+    // Set Galaxy
+    const g = catalogue[1]
+    dispatch(setGalaxyID(g.galaxyID))
+    dispatch(setGalaxyQuery(`${g.galaxyID} - ${g.galaxyName} (${Object.keys(g.regions).length})`))
+    dispatch(setStatus('Galaxy'))
+  })
+  .catch(err => {
+    console.log(err)
+    dispatch(setStatus('NoData'))
+  })
+}
+
+export const changeGalaxy = g => dispatch => {
+  // console.log('chain/changeGalaxy', g)
+  // Set Menu
+  dispatch(setGalaxyID(g.id))
+  // Set choice
+  dispatch(setGalaxyQuery(`${g.id} - ${g.name} (${g.regionCount})`))
+  // Display galaxy scene
+  dispatch(setStatus('Galaxy'))
+}
+
+export const changeRegion = r => dispatch => {
+  // Set Menu
+  dispatch(setRegionID(r.id))
+  // Set choice
+  dispatch(setRegionQuery(`${r.name} (${r.systemCount}) [${r.id}]`))
+  // Display scene
+  dispatch(setStatus('Region'))
+}
+
+export const changeSystem = s => dispatch => {
+  // Set Menu
+  dispatch(setSystemID(s.glyphs))
+  // Set choice
+  dispatch(setSystemQuery(`${s.name} (${s.ssi}) [${s.glyphs}]`))
+  // Focus on System
+  dispatch(setNode(s))
+  // Move camera
+  // dispatch(setCamera(s))
+}
