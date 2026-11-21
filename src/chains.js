@@ -1,7 +1,7 @@
 import { setCatalogue, setDistances, setStatus } from './features/startup/startupSlice'
 import { setGalaxyID, setGalaxyQuery, setRegionID, setRegionQuery, setSystemID, setSystemQuery } from './features/menu/menuSlice'
 import { setNode } from './features/tooltip/tooltipSlices'
-import { CATALOGUE, INTERREGION, INTRAREGION, REGIONDB } from './data/assets'
+import { SYSTEMDB, INTERREGION, INTRAREGION, REGIONDB } from './data/assets'
 import * as d3 from './d3-bundle';
 
 // Data: Load spreadsheets into array
@@ -202,7 +202,7 @@ function loadDistances(url) {
   })
 }
 
-// Map priorities from REGIONDB to CATALOGUE regions
+// Map priorities from REGIONDB to SYSTEMDB regions
 function applyRegionDBPriorities(catalogue, rawRegionDB) {
   if (!rawRegionDB || rawRegionDB.length === 0) {
     console.log('applyRegionDBPriorities: REGIONDB is empty');
@@ -350,7 +350,7 @@ function applyRegionDBPriorities(catalogue, rawRegionDB) {
 export const loadData = () => dispatch => {
   dispatch(setStatus('Loading'))
   return Promise.all([
-    loadCatalogue(CATALOGUE), 
+    loadCatalogue(SYSTEMDB), 
     loadDistances(INTRAREGION), 
     loadDistances(INTERREGION),
     loadSheets(REGIONDB)

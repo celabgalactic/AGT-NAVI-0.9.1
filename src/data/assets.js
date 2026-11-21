@@ -7,7 +7,7 @@ export const reticule = new THREE.Mesh(
   new THREE.MeshBasicMaterial({color: '#FFFFFF', side: THREE.FrontSide})
 )
 
-export const CATALOGUE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0jFq80ut0o5jtApdhRG8sR2CIufVn0FNcugR_7fdCIfrDRfgB9s-SvEhBAePrQCibr1RcxFVoXj7o/pub?gid=0&single=true&output=tsv'
-export const INTRAREGION = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0jFq80ut0o5jtApdhRG8sR2CIufVn0FNcugR_7fdCIfrDRfgB9s-SvEhBAePrQCibr1RcxFVoXj7o/pub?gid=1730024908&single=true&output=tsv'
-export const INTERREGION = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0jFq80ut0o5jtApdhRG8sR2CIufVn0FNcugR_7fdCIfrDRfgB9s-SvEhBAePrQCibr1RcxFVoXj7o/pub?gid=136271882&single=true&output=tsv'
-export const REGIONDB = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0jFq80ut0o5jtApdhRG8sR2CIufVn0FNcugR_7fdCIfrDRfgB9s-SvEhBAePrQCibr1RcxFVoXj7o/pub?gid=354119689&single=true&output=tsv'
+export const SYSTEMDB = '/api/sheets/systemdb'
+export const INTRAREGION = '/api/sheets/intraregion'
+export const INTERREGION = '/api/sheets/interregion'
+export const REGIONDB = '/api/sheets/regiondb'
